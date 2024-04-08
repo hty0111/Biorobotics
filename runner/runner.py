@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import gymnasium as gym
 import numpy as np
 import optuna
-import torch as th
+import torch
 import yaml
 from gymnasium import spaces
 from huggingface_sb3 import EnvironmentName
@@ -65,60 +65,25 @@ class Runner:
 
     def __init__(
         self,
-        args: argparse.Namespace,
-        algo: str,
-        env_id: str,
-        log_folder: str,
-        tensorboard_log: str = "",
-        n_timesteps: int = 0,
-        eval_freq: int = 10000,
-        n_eval_episodes: int = 5,
-        save_freq: int = -1,
-        hyperparams: Optional[Dict[str, Any]] = None,
-        env_kwargs: Optional[Dict[str, Any]] = None,
-        eval_env_kwargs: Optional[Dict[str, Any]] = None,
-        trained_agent: str = "",
-        optimize_hyperparameters: bool = False,
-        storage: Optional[str] = None,
-        study_name: Optional[str] = None,
-        n_trials: int = 1,
-        max_total_trials: Optional[int] = None,
-        n_jobs: int = 1,
-        sampler: str = "tpe",
-        pruner: str = "median",
-        optimization_log_path: Optional[str] = None,
-        n_startup_trials: int = 0,
-        n_evaluations: int = 1,
-        truncate_last_trajectory: bool = False,
-        uuid_str: str = "",
-        seed: int = 0,
-        log_interval: int = 0,
-        save_replay_buffer: bool = False,
-        verbose: int = 1,
-        vec_env_type: str = "dummy",
-        n_eval_envs: int = 1,
-        no_optim_plots: bool = False,
-        device: Union[th.device, str] = "auto",
-        config: Optional[str] = None,
-        show_progress: bool = False,
+        args: argparse.Namespace
     ):
         super().__init__()
-        self.algo = algo
-        self.env_name = EnvironmentName(env_id)
+        self.algo = args.algo
+        self.env_name = EnvironmentName(args.env)
         # Custom params
-        self.custom_hyperparams = hyperparams
+        self.custom_hyperparams = args.hyperparams
         default_path = Path(__file__).parent.parent
-        self.config = config or str(default_path / f"config/{self.algo}.yml")
-        self.env_kwargs: Dict[str, Any] = env_kwargs or {}
-        self.n_timesteps = n_timesteps
+        self.config = args.conf_file or str(default_path / f"config/{self.algo}.yml")
+        self.env_kwargs: Dict[str, Any] = args.env_kwargs or {}
+        self.n_timesteps = args.n_timesteps
         self.normalize = False
         self.normalize_kwargs: Dict[str, Any] = {}
         self.env_wrapper: Optional[Callable] = None
         self.frame_stack = None
-        self.seed = seed
-        self.optimization_log_path = optimization_log_path
+        self.seed = args.seed
+        self.optimization_log_path = args.optimization_log_path
 
-        self.vec_env_class = {"dummy": DummyVecEnv, "subproc": SubprocVecEnv}[vec_env_type]
+        self.vec_env_class = {"dummy": DummyVecEnv, "subproc": SubprocVecEnv}[args.vec_env]
         self.vec_env_wrapper: Optional[Callable] = None
 
         self.vec_env_kwargs: Dict[str, Any] = {}
@@ -128,51 +93,50 @@ class Runner:
         self.specified_callbacks: List = []
         self.callbacks: List[BaseCallback] = []
         # Use env-kwargs if eval_env_kwargs was not specified
-        self.eval_env_kwargs: Dict[str, Any] = eval_env_kwargs or self.env_kwargs
-        self.save_freq = save_freq
-        self.eval_freq = eval_freq
-        self.n_eval_episodes = n_eval_episodes
-        self.n_eval_envs = n_eval_envs
+        self.eval_env_kwargs: Dict[str, Any] = args.eval_env_kwargs or self.env_kwargs
+        self.save_freq = args.save_freq
+        self.eval_freq = args.eval_freq
+        self.n_eval_episodes = args.eval_episodes
+        self.n_eval_envs = args.n_eval_envs
 
         self.n_envs = 1  # it will be updated when reading hyperparams
         self.n_actions = 0  # For DDPG/TD3 action noise objects
         self._hyperparams: Dict[str, Any] = {}
         self.monitor_kwargs: Dict[str, Any] = {}
 
-        self.trained_agent = trained_agent
-        self.continue_training = trained_agent.endswith(".zip") and os.path.isfile(trained_agent)
-        self.truncate_last_trajectory = truncate_last_trajectory
+        self.trained_agent = args.trained_agent
+        self.continue_training = self.trained_agent.endswith(".zip") and os.path.isfile(self.trained_agent)
+        self.truncate_last_trajectory = args.truncate_last_trajectory
 
-        self._is_atari = self.is_atari(env_id)
         # Hyperparameter optimization config
-        self.optimize_hyperparameters = optimize_hyperparameters
-        self.storage = storage
-        self.study_name = study_name
-        self.no_optim_plots = no_optim_plots
+        self.optimize_hyperparameters = args.optimize_hyperparameters
+        self.storage = args.storage
+        self.study_name = args.study_name
+        self.no_optim_plots = args.no_optim_plots
         # maximum number of trials for finding the best hyperparams
-        self.n_trials = n_trials
-        self.max_total_trials = max_total_trials
+        self.n_trials = args.n_trials
+        self.max_total_trials = args.max_total_trials
         # number of parallel jobs when doing hyperparameter search
-        self.n_jobs = n_jobs
-        self.sampler = sampler
-        self.pruner = pruner
-        self.n_startup_trials = n_startup_trials
-        self.n_evaluations = n_evaluations
-        self.deterministic_eval = not (self.is_atari(env_id) or self.is_minigrid(env_id))
-        self.device = device
+        self.n_jobs = args.n_jobs
+        self.sampler = args.sampler
+        self.pruner = args.pruner
+        self.n_startup_trials = args.n_startup_trials
+        self.n_evaluations = args.n_evaluations
+        self.deterministic_eval = True
+        self.device = args.device
 
         # Logging
-        self.log_folder = log_folder
-        self.tensorboard_log = None if tensorboard_log == "" else os.path.join(tensorboard_log, self.env_name)
-        self.verbose = verbose
+        self.log_folder = args.log_folder
+        self.tensorboard_log = None if args.tensorboard_log == "" else os.path.join(args.tensorboard_log, self.env_name)
+        self.verbose = args.verbose
         self.args = args
-        self.log_interval = log_interval
-        self.save_replay_buffer = save_replay_buffer
-        self.show_progress = show_progress
+        self.log_interval = args.log_interval
+        self.save_replay_buffer = args.save_replay_buffer
+        self.show_progress = args.progress
 
-        self.log_path = f"{log_folder}/{self.algo}/"
+        self.log_path = f"{self.log_folder}/{self.algo}/"
         self.save_path = os.path.join(
-            self.log_path, f"{self.env_name}_{get_latest_run_id(self.log_path, self.env_name) + 1}{uuid_str}"
+            self.log_path, f"{self.env_name}_{get_latest_run_id(self.log_path, self.env_name) + 1}"
         )
         self.params_path = f"{self.save_path}/{self.env_name}"
 
@@ -306,8 +270,6 @@ class Runner:
 
         if self.env_name.gym_id in list(hyperparams_dict.keys()):
             hyperparams = hyperparams_dict[self.env_name.gym_id]
-        elif self._is_atari:
-            hyperparams = hyperparams_dict["atari"]
         else:
             raise ValueError(f"Hyperparameters not found for {self.algo}-{self.env_name.gym_id} in {self.config}")
 
@@ -522,14 +484,6 @@ class Runner:
     @staticmethod
     def entry_point(env_id: str) -> str:
         return str(gym.envs.registry[env_id].entry_point)
-
-    @staticmethod
-    def is_atari(env_id: str) -> bool:
-        return "AtariEnv" in Runner.entry_point(env_id)
-
-    @staticmethod
-    def is_minigrid(env_id: str) -> bool:
-        return "minigrid" in Runner.entry_point(env_id)
 
     @staticmethod
     def is_bullet(env_id: str) -> bool:
@@ -829,7 +783,6 @@ class Runner:
             warnings.warn("Tensorboard log is deactivated when running hyperparameter optimization")
             self.tensorboard_log = None
 
-        # TODO: eval each hyperparams several times to account for noisy evaluation
         sampler = self._create_sampler(self.sampler)
         pruner = self._create_pruner(self.pruner)
 
