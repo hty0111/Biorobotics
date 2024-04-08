@@ -45,7 +45,7 @@ def get_train_config():
         "--save-replay-buffer", help="Save the replay buffer too (when applicable)", action="store_true", default=False
     )
     parser.add_argument("-f", "--log-folder", help="Log folder", type=str, default="logs")
-    parser.add_argument("--seed", help="Random generator seed", type=int, default=-1)
+    parser.add_argument("--seed", help="Random generator seed", type=int, default=0)
     parser.add_argument("--vec-env", help="VecEnv type", type=str, default="dummy", choices=["dummy", "subproc"])
     parser.add_argument("--device", help="PyTorch device to be use (ex: cpu, cuda...)", default="auto", type=str)
     parser.add_argument(

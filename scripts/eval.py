@@ -12,7 +12,6 @@ import sys
 import numpy as np
 import torch as th
 import yaml
-from huggingface_sb3 import EnvironmentName
 from stable_baselines3.common.callbacks import tqdm
 from stable_baselines3.common.utils import set_random_seed
 
@@ -21,16 +20,13 @@ from rl_zoo3.exp_manager import ExperimentManager
 from rl_zoo3.load_from_hub import download_from_hub
 from rl_zoo3.utils import get_model_path
 
-from scripts.config import get_eval_config
+from config.config import get_eval_config
+
 
 def enjoy() -> None:
     args = get_eval_config()
 
-    # Going through custom gym packages to let them register in the global registory
-    for env_module in args.gym_packages:
-        importlib.import_module(env_module)
-
-    env_name: EnvironmentName = args.env
+    env_name = args.env
     algo = args.algo
     folder = args.folder
 

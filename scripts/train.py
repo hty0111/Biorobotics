@@ -5,69 +5,36 @@ Date: 2024-04-08 17:03
 Description:
 """
 
-import difflib
-import importlib
 import os
 import time
 import uuid
 
-import gymnasium as gym
-import numpy as np
 import stable_baselines3 as sb3
-import torch as th
+import torch
 from stable_baselines3.common.utils import set_random_seed
-from rl_zoo3.exp_manager import ExperimentManager
-from scripts.config import get_train_config
+
+from config.config import get_train_config
+from runner.runner import Runner
 
 
 def train() -> None:
+    # set configs
     args = get_train_config()
-
-    # Going through custom gym packages to let them register in the global registry
-    for env_module in args.gym_packages:
-        importlib.import_module(env_module)
-
     env_id = args.env
-    registered_envs = set(gym.envs.registry.keys())
-
-    # If the environment is not found, suggest the closest match
-    if env_id not in registered_envs:
-        try:
-            closest_match = difflib.get_close_matches(env_id, registered_envs, n=1)[0]
-        except IndexError:
-            closest_match = "'no close match found...'"
-        raise ValueError(f"{env_id} not found in gym registry, you maybe meant {closest_match}?")
-
-    # Unique id to ensure there is no race condition for the folder creation
     uuid_str = f"_{uuid.uuid4()}" if args.uuid else ""
-    if args.seed < 0:
-        # Seed but with a random one
-        args.seed = np.random.randint(2**32 - 1, dtype="int64").item()  # type: ignore[attr-defined]
-
     set_random_seed(args.seed)
 
-    # Setting num threads to 1 makes things run faster on cpu
     if args.num_threads > 0:
-        if args.verbose > 1:
-            print(f"Setting torch.num_threads to {args.num_threads}")
-        th.set_num_threads(args.num_threads)
+        torch.set_num_threads(args.num_threads)
 
+    # continue training
     if args.trained_agent != "":
         assert args.trained_agent.endswith(".zip") and os.path.isfile(
             args.trained_agent
         ), "The trained_agent must be a valid path to a .zip file"
 
-    print("=" * 10, env_id, "=" * 10)
-    print(f"Seed: {args.seed}")
-
     if args.track:
-        try:
-            import wandb
-        except ImportError as e:
-            raise ImportError(
-                "if you want to use Weights & Biases to track experiment, please install W&B via `pip install wandb`"
-            ) from e
-
+        import wandb
         run_name = f"{args.env}__{args.algo}__{args.seed}__{int(time.time())}"
         tags = [*args.wandb_tags, f"v{sb3.__version__}"]
         run = wandb.init(
@@ -82,7 +49,7 @@ def train() -> None:
         )
         args.tensorboard_log = f"runs/{run_name}"
 
-    exp_manager = ExperimentManager(
+    exp_manager = Runner(
         args,
         args.algo,
         env_id,
