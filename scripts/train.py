@@ -36,16 +36,16 @@ def train() -> None:
             monitor_gym=True,  # auto-upload the videos of agents playing the game
             save_code=True,  # optional
         )
-        args.tensorboard_log = f"runs/{run_name}"
+        # args.tensorboard_log = f"runs/{run_name}"
 
     # set process name
     setproctitle.setproctitle(str(args.env) + "-" + str(args.algo))
 
     # run experiments
-    exp_manager = Runner(args)
+    runner = Runner(args)
 
     # Prepare experiment and launch hyperparameter optimization if needed
-    results = exp_manager.setup_experiment()
+    results = runner.setup_experiment()
     if results is not None:
         model, saved_hyperparams = results
         if args.track:
@@ -56,10 +56,10 @@ def train() -> None:
 
         # Normal training
         if model is not None:
-            exp_manager.learn(model)
-            exp_manager.save_trained_model(model)
+            runner.learn(model)
+            runner.save_trained_model(model)
     else:
-        exp_manager.hyperparameters_optimization()
+        runner.hyperparameters_optimization()
 
 
 if __name__ == "__main__":

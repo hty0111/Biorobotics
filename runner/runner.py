@@ -20,6 +20,7 @@ import gymnasium as gym
 import numpy as np
 import optuna
 import torch
+from torch import nn
 import yaml
 from gymnasium import spaces
 from huggingface_sb3 import EnvironmentName
@@ -37,7 +38,6 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback,
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
-from stable_baselines3.common.sb2_compat.rmsprop_tf_like import RMSpropTFLike  # noqa: F401
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env import (
     DummyVecEnv,
@@ -48,9 +48,6 @@ from stable_baselines3.common.vec_env import (
     VecTransposeImage,
     is_vecenv_wrapped,
 )
-
-# For custom activation fn
-from torch import nn as nn
 
 # Register custom envs
 from rl_zoo3.callbacks import SaveVecNormalizeCallback, TrialEvalCallback
@@ -72,8 +69,7 @@ class Runner:
         self.env_name = EnvironmentName(args.env)
         # Custom params
         self.custom_hyperparams = args.hyperparams
-        default_path = Path(__file__).parent.parent
-        self.config = args.conf_file or str(default_path / f"config/{self.algo}.yml")
+        self.config = args.conf_file or str(Path(__file__).parent.parent / f"config/{self.algo}.yml")
         self.env_kwargs: Dict[str, Any] = args.env_kwargs or {}
         self.n_timesteps = args.n_timesteps
         self.normalize = False
@@ -85,9 +81,7 @@ class Runner:
 
         self.vec_env_class = {"dummy": DummyVecEnv, "subproc": SubprocVecEnv}[args.vec_env]
         self.vec_env_wrapper: Optional[Callable] = None
-
         self.vec_env_kwargs: Dict[str, Any] = {}
-        # self.vec_env_kwargs = {} if vec_env_type == "dummy" else {"start_method": "fork"}
 
         # Callbacks
         self.specified_callbacks: List = []
@@ -127,7 +121,6 @@ class Runner:
 
         # Logging
         self.log_folder = args.log_folder
-        self.tensorboard_log = None if args.tensorboard_log == "" else os.path.join(args.tensorboard_log, self.env_name)
         self.verbose = args.verbose
         self.args = args
         self.log_interval = args.log_interval
@@ -138,7 +131,8 @@ class Runner:
         self.save_path = os.path.join(
             self.log_path, f"{self.env_name}_{get_latest_run_id(self.log_path, self.env_name) + 1}"
         )
-        self.params_path = f"{self.save_path}/{self.env_name}"
+        self.tensorboard_log = f"{self.save_path}/tensorboard" if args.tensorboard_log == "" else os.path.join(self.save_path, args.tensorboard_log)
+        self.params_path = f"{self.save_path}/params"
 
     def setup_experiment(self) -> Optional[Tuple[BaseAlgorithm, Dict[str, Any]]]:
         """

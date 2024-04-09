@@ -1,7 +1,7 @@
 #!/bin/sh
 
 env="Humanoid-v4"
-algo="sac"
+algo="ppo"
 log_folder=./logs/
 exp_id=0
 
