@@ -135,7 +135,7 @@ Walker2d-v4:
 
 Humanoid-v4:
   <<: *mujoco-defaults
-  n_timesteps: !!float 2e6
+  n_timesteps: !!float 4e6
 # Tuned
 Swimmer-v4:
   <<: *mujoco-defaults
